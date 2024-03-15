@@ -1,0 +1,83 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  bkstrgrg: 'azdevTFTestRG0001'
+  bkstrh: 'azuredevopsbala00001'
+  bkcontainer: 'tfstate'
+  bkstrgkey: 'devpipeline.terraform.tfstate'
+
+stages:
+  - stage: tfvalidate
+    jobs:
+      - job: validate
+        continueOnError: false
+        steps:
+          - task: TerraformInstaller@1
+            displayName: tfinstall
+            inputs:
+              terraformVersion: 'latest'
+          - task: TerraformTaskV4@4
+            displayName: 'init'
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              backendServiceArm: 'NewAZD'
+              backendAzureRmResourceGroupName: '$(bkstrgrg)'
+              backendAzureRmStorageAccountName: '$(bkstrh)'
+              backendAzureRmContainerName: '$(bkcontainer)'
+              backendAzureRmKey: '$(bkstrgkey)'
+          - task: TerraformTaskV4@4
+            displayName: 'validate'
+            inputs:
+              provider: 'azurerm'
+              command: 'validate'
+  - stage: tfdeploy
+    condition: succeeded('tfvalidate')
+    dependsOn: tfvalidate
+    jobs:
+      - job: apply
+        steps:
+         - task: TerraformTaskV4@4
+           displayName: 'init'
+           inputs:
+              provider: 'azurerm'
+              command: 'init'
+              backendServiceArm: 'NewAZD'
+              backendAzureRmResourceGroupName: '$(bkstrgrg)'
+              backendAzureRmStorageAccountName: '$(bkstrh)'
+              backendAzureRmContainerName: '$(bkcontainer)'
+              backendAzureRmKey: '$(bkstrgkey)' 
+         - task: TerraformTaskV4@4
+           inputs:
+            provider: 'azurerm'
+            command: 'plan'
+            environmentServiceNameAzureRM: 'NewAZD'
+         - task: TerraformTaskV4@4
+           inputs:
+            provider: 'azurerm'
+            command: 'apply'
+            environmentServiceNameAzureRM: 'NewAZD'
+      # - job: waitForValidation
+      #   displayName: Wait for external validation
+      #   pool: server
+      #   timeoutInMinutes: 4320 # job times out in 3 days
+        #  - task: ManualValidation@0
+        #    timeoutInMinutes: 1440 # task times out in 1 day
+        #    inputs:
+        #       notifyUsers: |
+        #         test@test.com
+        #         example@example.com
+        #       instructions: 'Please validate the build configuration and resume'
+        #  - task: TerraformTaskV4@4
+        #    inputs:
+        #      provider: 'azurerm'
+        #      command: 'destroy'
+        #      environmentServiceNameAzureRM: 'NewAZD'
